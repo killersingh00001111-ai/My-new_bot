@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Transaction History{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="row-between">
+    <h1>Transaction History</h1>
+    <a class="btn" href="{{ url_for('payments.create_payment') }}">+ Create Payment Link</a>
+  </div>
+
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Amount</th>
+        <th>Method</th>
+        <th>Status</th>
+        <th>Expires</th>
+        <th>Created by</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for link in links %}
+      <tr>
+        <td>{{ link.amount }}</td>
+        <td>{{ link.requested_method }}</td>
+        <td><span class="badge badge-{{ link.status|lower }}">{{ link.status }}</span></td>
+        <td>{{ link.expires_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td>{{ link.created_by.username if link.created_by else '-' }}</td>
+        <td><a href="{{ url_for('payments.payment_detail', link_id=link.id) }}">View</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6">No payment links yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
