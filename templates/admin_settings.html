@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Admin Panel{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Admin panel</h1>
+
+  <h2>Users</h2>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Username</th><th>Role</th><th>Name</th><th>Status</th><th>Expires</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td>{{ u.username }}</td>
+        <td>{{ u.role }}</td>
+        <td>{{ u.name }}</td>
+        <td>
+          {% if u.is_owner %}
+            <span class="badge badge-approved">Owner</span>
+          {% elif not u.is_active %}
+            <span class="badge badge-rejected">Disabled</span>
+          {% elif u.is_expired %}
+            <span class="badge badge-rejected">Expired</span>
+          {% else %}
+            <span class="badge badge-approved">Active</span>
+          {% endif %}
+        </td>
+        <td>{{ u.expires_at.strftime('%Y-%m-%d') if u.expires_at else '-' }}</td>
+        <td>
+          {% if not u.is_owner %}
+            {% if u.is_active and not u.is_expired %}
+              <form method="post" action="{{ url_for('admin.disable_user', user_id=u.id) }}"
+                    class="inline-form-tight"
+                    onsubmit="return confirm('Disable {{ u.username }}? They will not be able to log in until reactivated.');">
+                <button type="submit" class="btn btn-danger">Delete / Disable</button>
+              </form>
+            {% else %}
+              <form method="post" action="{{ url_for('admin.reactivate_user', user_id=u.id) }}" class="inline-form-tight">
+                <input type="password" name="new_password" placeholder="New password" required minlength="6">
+                <button type="submit" class="btn">Reactivate</button>
+              </form>
+            {% endif %}
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>Add user (owner or admin)</h3>
+  <form method="post" action="{{ url_for('admin.create_user') }}" class="inline-form">
+    <input type="text" name="username" placeholder="Username" required>
+    <input type="password" name="password" placeholder="Password" required minlength="6">
+    <select name="role">
+      <option value="admin">Admin</option>
+      <option value="owner">Owner</option>
+    </select>
+    <input type="number" name="duration_days" placeholder="Admin duration (days)" min="1">
+    <button type="submit">Add user</button>
+  </form>
+  <p class="hint">Duration only applies when the role is Admin. Leave it blank for an admin with no expiry - it's ignored for Owner accounts.</p>
+
+  <h2>Site background</h2>
+  {% if background %}
+    <img class="bg-preview" src="{{ url_for('static', filename=background) }}" alt="Current background">
+  {% endif %}
+  <form method="post" action="{{ url_for('admin.change_background') }}" enctype="multipart/form-data" class="inline-form">
+    <input type="file" name="background" accept="image/*" required>
+    <button type="submit">Update background</button>
+  </form>
+</div>
+{% endblock %}
