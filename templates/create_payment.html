@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Create Payment Link{% endblock %}
+{% block content %}
+<div class="card narrow">
+  <h1>Create payment link</h1>
+  <form method="post">
+    <label>Amount (min ₹{{ min_amount }} — max ₹{{ max_amount }})</label>
+    <input type="number" name="amount" min="{{ min_amount }}" max="{{ max_amount }}" required autofocus>
+
+    <label>Payment method</label>
+    <select name="requested_method">
+      <option value="ANY">Any</option>
+      <option value="UPI">UPI</option>
+      <option value="GooglePay">GooglePay</option>
+      <option value="PhonePe">PhonePe</option>
+      <option value="Paytm">Paytm</option>
+      <option value="PaytmUPI">PaytmUPI</option>
+      <option value="BHIM">BHIM</option>
+      <option value="BankTransfer">BankTransfer</option>
+      <option value="IMPS">IMPS</option>
+      <option value="WHATSAPPPAY">WHATSAPPPAY</option>
+    </select>
+
+    <label>How should this payment be confirmed?</label>
+    <label class="radio-option">
+      <input type="radio" name="verification_mode" value="auto" checked>
+      Automatic — confirmed by Einpays' callback signal
+    </label>
+    <label class="radio-option">
+      <input type="radio" name="verification_mode" value="manual">
+      Manual — confirmed by entering a Transaction ID
+    </label>
+
+    <label>Link/QR expiry (minutes)</label>
+    <input type="number" name="expiry_minutes" min="1" value="{{ config.DEFAULT_LINK_EXPIRY_MINUTES if config else 10 }}">
+
+    <button type="submit">Generate link &amp; QR code</button>
+  </form>
+</div>
+{% endblock %}
