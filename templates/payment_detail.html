@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Payment #{{ link.id }}{% endblock %}
+{% block content %}
+<div class="card narrow center">
+  <h1>Payment link</h1>
+  <p><strong>Amount:</strong> {{ link.amount }}</p>
+  <p><strong>Status:</strong> <span class="badge badge-{{ link.status|lower }}">{{ link.status }}</span></p>
+  <p><strong>Confirmation type:</strong> {{ "Automatic (callback)" if link.verification_mode == "auto" else "Manual (Transaction ID)" }}</p>
+  <p><strong>Expires:</strong> {{ link.expires_at.strftime('%Y-%m-%d %H:%M') }}</p>
+
+  {% if link.verification_mode == "manual" and link.status not in ["APPROVED", "REJECTED"] %}
+  <form method="post" action="{{ url_for('payments.confirm_manual', link_id=link.id) }}" class="manual-confirm">
+    <label>Transaction ID (from the payer, to confirm success)</label>
+    <input type="text" name="transaction_id" required placeholder="e.g. TXN123456">
+    <button type="submit">Verify &amp; mark Approved</button>
+  </form>
+  {% endif %}
+
+  {% if link.qr_image_path %}
+    <img class="qr" src="{{ url_for('static', filename=link.qr_image_path) }}" alt="Payment QR code">
+  {% endif %}
+
+  <div class="link-copy">
+    <input type="text" readonly value="{{ link.payment_link }}" id="paylink" onclick="this.select()">
+    <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('paylink').value)">Copy</button>
+  </div>
+
+  <p><a href="{{ link.payment_link }}" target="_blank" rel="noopener">Open payment page</a></p>
+  <p><a href="{{ url_for('payments.transactions') }}">&larr; Back to transaction history</a></p>
+</div>
+{% endblock %}

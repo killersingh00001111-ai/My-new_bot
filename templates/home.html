@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Welcome, {{ current_user.username }}!</h1>
+  <p class="muted">Here's a quick look at your payment activity.</p>
+
+  <div class="stats-grid">
+    <div class="stat-box stat-success">
+      <div class="stat-num">{{ my_stats.success_count }}</div>
+      <div class="stat-label">Successful</div>
+    </div>
+    <div class="stat-box stat-pending">
+      <div class="stat-num">{{ my_stats.pending_count }}</div>
+      <div class="stat-label">Pending</div>
+    </div>
+    <div class="stat-box stat-expired">
+      <div class="stat-num">{{ my_stats.expired_count }}</div>
+      <div class="stat-label">Expired</div>
+    </div>
+    <div class="stat-box stat-failed">
+      <div class="stat-num">{{ my_stats.failed_count }}</div>
+      <div class="stat-label">Failed</div>
+    </div>
+  </div>
+
+  <p><a href="{{ url_for('payments.transactions') }}">View full transaction history &rarr;</a></p>
+</div>
+
+{% if current_user.is_owner %}
+<div class="card">
+  <h2>Everyone's totals</h2>
+  <div class="stats-grid">
+    <div class="stat-box stat-success">
+      <div class="stat-num">{{ team_stats.success_count }}</div>
+      <div class="stat-label">Successful</div>
+    </div>
+    <div class="stat-box stat-pending">
+      <div class="stat-num">{{ team_stats.pending_count }}</div>
+      <div class="stat-label">Pending</div>
+    </div>
+    <div class="stat-box stat-expired">
+      <div class="stat-num">{{ team_stats.expired_count }}</div>
+      <div class="stat-label">Expired</div>
+    </div>
+    <div class="stat-box stat-failed">
+      <div class="stat-num">{{ team_stats.failed_count }}</div>
+      <div class="stat-label">Failed</div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>By admin</h2>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>User</th>
+        <th>Role</th>
+        <th>Total</th>
+        <th>Successful</th>
+        <th>Pending</th>
+        <th>Expired</th>
+        <th>Failed</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for entry in per_user_stats %}
+      <tr>
+        <td>{{ entry.user.username }}</td>
+        <td>{{ entry.user.role }}</td>
+        <td>{{ entry.stats.total_count }}</td>
+        <td>{{ entry.stats.success_count }}</td>
+        <td>{{ entry.stats.pending_count }}</td>
+        <td>{{ entry.stats.expired_count }}</td>
+        <td>{{ entry.stats.failed_count }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7">No users yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}
