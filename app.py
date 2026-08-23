@@ -1,0 +1,120 @@
+import os
+import sys
+
+# Make sure this file's own folder is on sys.path, so imports like
+# "from extensions import db" work even if the WSGI server launches this
+# module from a different working directory (this is what caused the
+# "ModuleNotFoundError: No module named 'extensions'" error on PythonAnywhere).
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from flask import Flask, session
+from flask_login import current_user
+
+from config import Config
+from extensions import db, login_manager
+from models import User, SiteSetting
+
+
+def create_app():
+    app = Flask(__name__)
+    app.config.from_object(Config)
+
+    db.init_app(app)
+    login_manager.init_app(app)
+
+    os.makedirs(Config.UPLOAD_AVATAR_DIR, exist_ok=True)
+    os.makedirs(Config.UPLOAD_BACKGROUND_DIR, exist_ok=True)
+    os.makedirs(Config.QR_DIR, exist_ok=True)
+
+    from auth import auth_bp
+    from payments import payments_bp
+    from admin import admin_bp
+    from profile_routes import profile_bp
+    from webhooks import webhooks_bp
+
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(payments_bp)
+    app.register_blueprint(admin_bp)
+    app.register_blueprint(profile_bp)
+    app.register_blueprint(webhooks_bp)
+
+    @app.context_processor
+    def inject_background():
+        bg = SiteSetting.query.get("background_image")
+        return {"site_background": bg.value if bg else ""}
+
+    @app.before_request
+    def _refresh_session_timeout():
+        # Touch the session on every request from a logged-in user, so the
+        # idle timeout (SESSION_TIMEOUT_MINUTES) counts minutes of REAL
+        # inactivity, not just time since login - someone actively using
+        # the site stays logged in indefinitely; someone who backgrounds
+        # the app/phone gets logged out once that many minutes pass with
+        # no requests at all.
+        if current_user.is_authenticated:
+            session.permanent = True
+            session.modified = True
+
+    with app.app_context():
+        db.create_all()
+        _ensure_owner_account()
+
+    return app
+
+
+# Owner login. Change these values any time you want a different
+# username/password, then just redeploy - no separate script or
+# Render dashboard steps needed, _ensure_owner_account() below applies
+# it on every startup automatically.
+OWNER_USERNAME = "Rimon"
+OWNER_PASSWORD = "340622"
+OWNER_PIN = "1234"  # kept here but no longer applied below (see note) - not currently used
+
+
+def _ensure_owner_account():
+    """Runs on every app startup. Guarantees OWNER_USERNAME/OWNER_PASSWORD
+    always work for an "owner" account, no matter what's in the database -
+    creates the account if it's missing, or force-resets its
+    password/role if it already exists with something else. This is
+    what keeps login working even if the underlying database gets reset
+    (e.g. an ephemeral SQLite file wiped by a Render redeploy).
+
+    The owner's PIN-lock is intentionally left OFF (pin_hash cleared) -
+    the owner logs in once with the password above, and isn't asked for
+    anything again for as long as they stay on the site. (Admin accounts
+    created from the Admin Panel already never had a PIN set, so this
+    just makes the owner match that same one-time-login behaviour.)"""
+    user = User.query.filter_by(username=OWNER_USERNAME).first()
+    if user:
+        user.set_password(OWNER_PASSWORD)
+        user.pin_hash = None
+        user.role = "owner"
+        user.is_active = True
+        user.expires_at = None
+    else:
+        user = User(username=OWNER_USERNAME, role="owner", name="Owner")
+        user.set_password(OWNER_PASSWORD)
+        db.session.add(user)
+    db.session.commit()
+
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+
+# Module-level Flask instance, created once when this module is imported.
+# PythonAnywhere's generated WSGI file does:
+#     from app import app as application
+# which requires a variable literally named "app" at module scope - just
+# defining create_app() is not enough (that was the second error in your
+# log: "ImportError: cannot import name 'app' from 'app'").
+app = create_app()
+
+
+if __name__ == "__main__":
+    # threaded=True so this also handles more than one person at a time
+    # when run directly (python app.py) - same fix as the Procfile's
+    # --threads for when it's run through gunicorn instead.
+    app.run(debug=True, host="0.0.0.0", port=5000, threaded=True)
