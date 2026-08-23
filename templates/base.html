@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Transaction History{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body {% if site_background %}style="background-image:url('{{ url_for('static', filename=site_background) }}')"{% endif %}>
+
+  {% if current_user.is_authenticated %}
+  <button type="button" class="menu-fab" id="sidebarToggle" aria-label="Open menu">
+    <span></span><span></span><span></span>
+  </button>
+
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-top">
+      <span class="sidebar-brand">Admin Panel</span>
+      <div class="live-indicator" title="Server responded, site is live">
+        <span class="live-dot"></span>
+        <span class="live-label">Live</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a class="sidebar-link {% if request.endpoint == 'payments.dashboard' %}active{% endif %}"
+         href="{{ url_for('payments.dashboard') }}">
+        <span class="sidebar-icon">🏠</span>
+        <span class="sidebar-text">Home</span>
+      </a>
+      <a class="sidebar-link {% if request.endpoint == 'payments.transactions' %}active{% endif %}"
+         href="{{ url_for('payments.transactions') }}">
+        <span class="sidebar-icon">📊</span>
+        <span class="sidebar-text">Transaction History</span>
+      </a>
+      <a class="sidebar-link {% if request.endpoint == 'payments.create_payment' %}active{% endif %}"
+         href="{{ url_for('payments.create_payment') }}">
+        <span class="sidebar-icon">➕</span>
+        <span class="sidebar-text">Create Payment Link</span>
+      </a>
+      {% if current_user.is_owner %}
+      <a class="sidebar-link {% if request.endpoint == 'admin.panel' %}active{% endif %}"
+         href="{{ url_for('admin.panel') }}">
+        <span class="sidebar-icon">⚙️</span>
+        <span class="sidebar-text">Admin Panel</span>
+      </a>
+      <a class="sidebar-link {% if request.endpoint == 'admin.reset_link' %}active{% endif %}"
+         href="{{ url_for('admin.reset_link') }}">
+        <span class="sidebar-icon">🔑</span>
+        <span class="sidebar-text">Reset Password</span>
+      </a>
+      {% endif %}
+      <a class="sidebar-link {% if request.endpoint == 'api_settings.api_settings' %}active{% endif %}"
+         href="{{ url_for('api_settings.api_settings') }}">
+        <span class="sidebar-icon">🔌</span>
+        <span class="sidebar-text">API</span>
+      </a>
+      <a class="sidebar-link {% if request.endpoint == 'profile.profile' %}active{% endif %}"
+         href="{{ url_for('profile.profile') }}">
+        <span class="sidebar-icon">👤</span>
+        <span class="sidebar-text">Profile</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <a class="sidebar-link sidebar-profile {% if request.endpoint == 'profile.profile' %}active{% endif %}"
+         href="{{ url_for('profile.profile') }}">
+        {% if current_user.avatar_path %}
+          <img class="sidebar-avatar" src="{{ url_for('static', filename=current_user.avatar_path) }}" alt="">
+        {% else %}
+          <span class="sidebar-avatar sidebar-avatar-placeholder">{{ current_user.username[:1]|upper }}</span>
+        {% endif %}
+        <span class="sidebar-text">
+          <span class="sidebar-who">{{ current_user.username }}</span>
+          <span class="sidebar-role">{{ current_user.role }}</span>
+        </span>
+      </a>
+      <a class="sidebar-link" href="{{ url_for('auth.logout') }}">
+        <span class="sidebar-icon">🚪</span>
+        <span class="sidebar-text">Logout</span>
+      </a>
+    </div>
+  </aside>
+  {% endif %}
+
+  {% if current_user.is_authenticated and current_user.pin_hash %}
+  <div class="pin-overlay" id="pinLockOverlay">
+    <div class="pin-box">
+      <h2>Enter PIN to continue</h2>
+      <p class="muted">You left the site for a moment - enter your unlock PIN.</p>
+      <form id="pinForm">
+        <input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="9"
+               id="pinInput" autocomplete="off" placeholder="•••••••••">
+        <button type="submit" class="btn">Unlock</button>
+      </form>
+      <p class="flash flash-error" id="pinError" style="display:none;">Incorrect PIN. Try again.</p>
+    </div>
+  </div>
+  {% endif %}
+
+  <main class="container">
+    {% if current_user.is_authenticated and not current_user.is_owner and current_user.expires_at %}
+      <div class="flash flash-info">
+        Your access expires in:
+        <span class="countdown" data-expires="{{ current_user.expires_at.isoformat() }}Z">-</span>
+      </div>
+    {% endif %}
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flashes">
+          {% for category, message in messages %}
+            {% if category == 'welcome' %}
+              <div class="welcome-box">
+                <div class="welcome-box-title">Share these details with the user</div>
+                <textarea class="welcome-box-text" readonly rows="7">{{ message }}</textarea>
+                <div class="welcome-box-actions">
+                  <button type="button" class="btn btn-copy" data-copy-target="prev">Copy</button>
+                  <button type="button" class="btn btn-share" data-share-target="prev">Share</button>
+                </div>
+              </div>
+            {% else %}
+              <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <script>
+    // PIN lock: as soon as this tab/site is backgrounded (switch app, switch
+    // tab, minimize the browser) we mark it "locked" in sessionStorage; the
+    // next time it becomes visible again, the PIN overlay reappears and
+    // blocks the page until the correct PIN is entered. This is separate
+    // from the login password/session timeout - it's a quick re-check every
+    // time you step away from the site itself, like a phone's app lock.
+    (function () {
+      var overlay = document.getElementById("pinLockOverlay");
+      if (!overlay) return; // this account has no PIN set - nothing to lock
+
+      var form = document.getElementById("pinForm");
+      var input = document.getElementById("pinInput");
+      var error = document.getElementById("pinError");
+
+      function showLock() {
+        overlay.classList.add("visible");
+        error.style.display = "none";
+        input.value = "";
+        setTimeout(function () { input.focus(); }, 50);
+      }
+      function hideLock() {
+        overlay.classList.remove("visible");
+        sessionStorage.removeItem("pinLocked");
+      }
+
+      document.addEventListener("visibilitychange", function () {
+        if (document.visibilityState === "hidden") {
+          sessionStorage.setItem("pinLocked", "1");
+        } else if (sessionStorage.getItem("pinLocked") === "1") {
+          showLock();
+        }
+      });
+      window.addEventListener("pageshow", function () {
+        if (sessionStorage.getItem("pinLocked") === "1") showLock();
+      });
+
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        fetch("{{ url_for('auth.verify_pin') }}", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: "pin=" + encodeURIComponent(input.value),
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (data.ok) {
+              hideLock();
+            } else {
+              error.textContent = "Incorrect PIN. Try again.";
+              error.style.display = "block";
+              input.value = "";
+              input.focus();
+            }
+          })
+          .catch(function () {
+            error.textContent = "Couldn't reach the server - try again.";
+            error.style.display = "block";
+          });
+      });
+    })();
+
+    // Sidebar drawer: hidden by default, opens as an overlay when the
+    // floating hamburger button is tapped; tapping the backdrop or a
+    // nav link closes it again.
+    (function () {
+      var toggle = document.getElementById("sidebarToggle");
+      var sidebar = document.getElementById("sidebar");
+      var backdrop = document.getElementById("sidebarBackdrop");
+      if (!toggle || !sidebar || !backdrop) return;
+
+      function openSidebar() {
+        sidebar.classList.add("open");
+        backdrop.classList.add("visible");
+      }
+      function closeSidebar() {
+        sidebar.classList.remove("open");
+        backdrop.classList.remove("visible");
+      }
+
+      toggle.addEventListener("click", function () {
+        if (sidebar.classList.contains("open")) {
+          closeSidebar();
+        } else {
+          openSidebar();
+        }
+      });
+      backdrop.addEventListener("click", closeSidebar);
+      sidebar.querySelectorAll(".sidebar-link").forEach(function (link) {
+        link.addEventListener("click", closeSidebar);
+      });
+    })();
+
+    // Copy / share buttons for the "welcome message" box shown after
+    // creating or reactivating an admin user.
+    document.querySelectorAll(".btn-copy").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var box = btn.closest(".welcome-box");
+        var textarea = box.querySelector(".welcome-box-text");
+        navigator.clipboard.writeText(textarea.value).then(function () {
+          var original = btn.textContent;
+          btn.textContent = "Copied!";
+          setTimeout(function () { btn.textContent = original; }, 1500);
+        });
+      });
+    });
+
+    document.querySelectorAll(".btn-share").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var box = btn.closest(".welcome-box");
+        var textarea = box.querySelector(".welcome-box-text");
+        if (navigator.share) {
+          navigator.share({ text: textarea.value }).catch(function () {});
+        } else {
+          navigator.clipboard.writeText(textarea.value);
+          alert("Sharing isn't supported on this browser - the message was copied instead.");
+        }
+      });
+    });
+
+    // Live reverse countdown for any ".countdown[data-expires]" element on
+    // the page - the admin's own "access expires in" banner above, and
+    // the owner's per-user "Expires" column on the Admin Panel page.
+    // Runs entirely in the browser - no server calls, no page reload
+    // needed. Under 1 day left: shows HH:MM:SS. 1 day or more left: shows
+    // "Xd HH:MM:SS". Ticks every second; once the time is up, shows
+    // "Expired" (the server-side check that actually logs an expired
+    // admin out runs separately, on their next request).
+    (function () {
+      function pad(n) {
+        return String(n).padStart(2, "0");
+      }
+
+      function formatCountdown(msLeft) {
+        if (msLeft <= 0) return "Expired";
+        var totalSeconds = Math.floor(msLeft / 1000);
+        var days = Math.floor(totalSeconds / 86400);
+        var hours = Math.floor((totalSeconds % 86400) / 3600);
+        var minutes = Math.floor((totalSeconds % 3600) / 60);
+        var seconds = totalSeconds % 60;
+
+        if (days > 0) {
+          return days + "d " + pad(hours) + ":" + pad(minutes) + ":" + pad(seconds);
+        }
+        return pad(hours) + ":" + pad(minutes) + ":" + pad(seconds);
+      }
+
+      function tick() {
+        document.querySelectorAll(".countdown[data-expires]").forEach(function (el) {
+          var expiresAt = new Date(el.getAttribute("data-expires")).getTime();
+          var msLeft = expiresAt - Date.now();
+          el.textContent = formatCountdown(msLeft);
+          el.style.color = msLeft <= 0 ? "#ff6b6b" : "";
+        });
+      }
+
+      tick();
+      setInterval(tick, 1000);
+    })();
+  </script>
+</body>
+</html>
