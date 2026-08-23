@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Reset Password Link{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Reset password link</h1>
+  <p class="hint">
+    Share this link with any admin who can't log in. It opens a page
+    where they type their own username and a new password, then tap
+    "Reset now" - only that one account changes, every other login on
+    the server stays exactly as it is. If that admin has a time-boxed
+    duration, resetting their password here never restarts or changes
+    that timer.
+  </p>
+
+  {% if reset_url %}
+    <div class="welcome-box">
+      <div class="welcome-box-title">Reset password link</div>
+      <textarea class="welcome-box-text" readonly rows="2">{{ reset_url }}</textarea>
+      <div class="welcome-box-actions">
+        <button type="button" class="btn btn-copy" data-copy-target="prev">Copy</button>
+        <button type="button" class="btn btn-share" data-share-target="prev">Share</button>
+      </div>
+    </div>
+
+    <form method="post" action="{{ url_for('admin.generate_reset_link') }}" class="inline-form-tight" style="margin-top:12px;">
+      <button type="submit" class="btn">Regenerate link (turns off the old one)</button>
+    </form>
+    <form method="post" action="{{ url_for('admin.disable_reset_link') }}" class="inline-form-tight"
+          onsubmit="return confirm('Turn off the current reset link? It will stop working immediately.');">
+      <button type="submit" class="btn btn-danger">Turn off link</button>
+    </form>
+  {% else %}
+    <form method="post" action="{{ url_for('admin.generate_reset_link') }}" class="inline-form-tight">
+      <button type="submit" class="btn">Generate reset link</button>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}
